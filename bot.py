@@ -1,9 +1,16 @@
 import os
-import asyncio
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 TOKEN = os.environ["BOT_TOKEN"]
+PORT = int(os.environ.get("PORT", "10000"))
+RENDER_URL = os.environ["RENDER_EXTERNAL_URL"]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -31,12 +38,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "check":
         await query.message.reply_text(
-            "🔍 用户查询\n\n请输入 Telegram 用户名或 ID，例如：\n@username"
+            "🔍 用户查询\n\n"
+            "请输入 Telegram 用户名或 ID，例如：\n"
+            "@username"
         )
 
     elif query.data == "report":
         await query.message.reply_text(
-            "🚨 提交举报\n\n请先输入被举报人的 Telegram 用户名或 ID。"
+            "🚨 提交举报\n\n"
+            "请先输入被举报人的 Telegram 用户名或 ID。"
         )
 
     elif query.data == "help":
@@ -47,17 +57,35 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-def main():
-    app = Application.builder().token(TOKEN).build()
+async def post_init(application: Application):
+    webhook_url = f"{RENDER_URL}/telegram"
+    await application.bot.set_webhook(
+        url=webhook_url,
+        allowed_updates=Update.ALL_TYPES,
+    )
+    print(f"Webhook set: {webhook_url}")
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(
-        __import__("telegram.ext", fromlist=["CallbackQueryHandler"])
-        .CallbackQueryHandler(button)
+
+def main():
+    app = (
+        Application.builder()
+        .token(TOKEN)
+        .post_init(post_init)
+        .build()
     )
 
-    print("TGSENTRY is running...")
-    app.run_polling()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button))
+
+    print("TGSENTRY is starting...")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="telegram",
+        webhook_url=f"{RENDER_URL}/telegram",
+        allowed_updates=Update.ALL_TYPES,
+    )
 
 
 if __name__ == "__main__":
